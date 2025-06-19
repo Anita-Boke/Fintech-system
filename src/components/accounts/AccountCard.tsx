@@ -1,9 +1,12 @@
-import { Account } from '@/lib/constants';
+// src/components/accounts/AccountCard.tsx
+'use client';
+
+import { AccountWithCustomer } from '@/lib/constants';
 import Link from 'next/link';
 
 interface AccountCardProps {
-  account: Account;
-  onDelete: (id: string) => void;
+  account: AccountWithCustomer;
+  onDelete?: (id: string) => void;
 }
 
 export default function AccountCard({ account, onDelete }: AccountCardProps) {
@@ -12,6 +15,7 @@ export default function AccountCard({ account, onDelete }: AccountCardProps) {
       <div className="flex justify-between items-start">
         <div>
           <h3 className="font-semibold text-black">{account.accountNumber}</h3>
+          <p className="text-sm text-gray-600">Customer: {account.customerName}</p>
           <p className="text-sm text-gray-600">Balance: ${account.balance.toFixed(2)}</p>
         </div>
         <span className={`px-2 py-1 text-xs rounded ${
@@ -35,16 +39,18 @@ export default function AccountCard({ account, onDelete }: AccountCardProps) {
         <div className="flex space-x-2">
           <Link 
             href={`/dashboard/accounts/${account.id}`}
-            className="text-primary hover:underline text-sm"
+            className="text-blue-600 hover:underline text-sm"
           >
-            Edit
+            View
           </Link>
-          <button 
-            onClick={() => onDelete(account.id)}
-            className="text-red-600 hover:underline text-sm"
-          >
-            Delete
-          </button>
+          {onDelete && (
+            <button 
+              onClick={() => onDelete(account.id)}
+              className="text-red-600 hover:underline text-sm"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
     </div>

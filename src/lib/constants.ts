@@ -23,7 +23,9 @@ export interface Account {
   status: 'Active' | 'Suspended' | 'Closed';
   userId?:string;
 }
-
+export interface AccountWithCustomer extends Account {
+  customerName: string;
+}
 export interface Transaction {
   id: string;
   userId?:string;

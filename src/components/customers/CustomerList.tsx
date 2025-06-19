@@ -1,4 +1,5 @@
 // src/components/customers/CustomerList.tsx
+// src/components/customers/CustomerList.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,18 +9,39 @@ import CustomerCard from './CustomerCard';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 
+export interface Account {
+  id: string;
+  customerId: string;
+  accountNumber: string;
+  accountType: 'Savings' | 'Checking' | 'Business';
+  balance: number;
+  status: 'Active' | 'Suspended' | 'Closed';
+  userId?: string;
+}
+
+export interface Customer {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  dateOfRegistration: string;
+  customerType: 'Individual' | 'Business';
+  profilePicture: string;
+}
+
 export default function CustomerList() {
   const { data: session } = useSession();
-  const [customers, setCustomers] = useState([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadCustomers = () => {
+    const loadCustomers = async () => {
       try {
-        setCustomers(getCustomers());
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const customersData = await getCustomers();
+        setCustomers(customersData);
       } catch (error) {
         toast.error('Failed to load customers');
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -27,21 +49,23 @@ export default function CustomerList() {
     loadCustomers();
   }, []);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     try {
-      const updatedCustomers = deleteCustomer(id);
-      setCustomers(updatedCustomers);
+      await deleteCustomer(id);
+      setCustomers(prevCustomers => prevCustomers.filter(customer => customer.id !== id));
       toast.success('Customer deleted successfully');
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       toast.error('Failed to delete customer');
+      console.error(error);
     }
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-64">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-    </div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
 
   return (
@@ -78,12 +102,12 @@ export default function CustomerList() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {customers.map(customer => (
-            <CustomerCard 
-              key={customer.id} 
-              customer={customer}
-              onDelete={session?.user?.role === 'admin' ? handleDelete : undefined}
-            />
-          ))}
+  <CustomerCard 
+    key={customer.id} 
+    customer={customer}
+    onDelete={session?.user?.role === 'admin' ? handleDelete : () => {}}
+  />
+))}
         </div>
       )}
     </div>

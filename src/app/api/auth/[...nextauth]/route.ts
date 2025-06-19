@@ -105,6 +105,19 @@ export const authOptions: AuthOptions = {
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, 
+    updateAge: 24 * 60 * 60 // Update session once per day
+  },
+   cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: false,
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      },
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",

@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
         setCustomers(customerData ? [customerData] : []);
         setAccounts(accountsData || []);
-        setTransactions(transactionsData || []);
+        setTransactions(transactionsData as Transaction []);
       } catch (error) {
         toast.error('Failed to load dashboard data');
         console.error(error);
@@ -166,6 +166,7 @@ export default function DashboardPage() {
                 onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
               >
                 {customer.profilePicture ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img 
                     src={customer.profilePicture} 
                     alt={customer.fullName}

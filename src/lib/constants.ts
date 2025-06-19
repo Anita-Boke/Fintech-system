@@ -100,8 +100,8 @@ export const dummyCustomers: Customer[] = [
   },
   {
     id: 'cus_003',
-    fullName: 'Vil Opilo',
-    email: 'vil@gmail.com',
+    fullName: 'Marvel',
+    email: 'marvel@gmail.com',
     phone: '0712345678',
     dateOfRegistration: '2023-03-15',
     customerType: 'Business',

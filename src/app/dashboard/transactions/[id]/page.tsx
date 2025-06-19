@@ -1,4 +1,6 @@
 import TransactionForm from '@/components/transactions/TransactionForm';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 interface TransactionDetailPageProps {
   params: {
@@ -6,6 +8,9 @@ interface TransactionDetailPageProps {
   };
 }
 
-export default function TransactionDetailPage({ params }: TransactionDetailPageProps) {
-  return <TransactionForm transactionId={params.id} />;
+export default async function TransactionDetailPage({ params }: TransactionDetailPageProps) {
+  const session = await getServerSession(authOptions);
+  const isAdmin = session?.user?.role === 'admin';
+  
+  return <TransactionForm transactionId={params.id} isAdmin={isAdmin} />;
 }

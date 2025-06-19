@@ -1,3 +1,4 @@
+// src/app/dashboard/transactions/page.tsx
 import TransactionList from '@/components/transactions/TransactionList';
 
 export default function TransactionsPage() {

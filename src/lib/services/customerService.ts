@@ -1,103 +1,153 @@
-import { Customer, dummyCustomers } from '../constants';
+import { Account, Customer, dummyCustomers, dummyUsers, STORAGE_KEYS, Transaction } from '../constants';
+import { getAccounts } from './accountService';
+import { getTransactions } from './transactionService';
 
-const CUSTOMERS_KEY = 'fintech-customers';
-const TRANSACTIONS_KEY = 'fintech-transactions'; // Added
-const ACCOUNTS_KEY = 'fintech-accounts'; // Optional: if you want to persist accounts
-
-// Get all customers
-export const getCustomers = (): Customer[] => {
+export const getCustomerAccounts = (customerId: string): Account[] => {
+  return getAccounts().filter(account => account.customerId === customerId);
+};
+const getPersistedCustomers = (): Customer[] => {
   if (typeof window === 'undefined') return [];
+  
+  // Check localStorage first (persistent)
+  const persistentData = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
+  if (persistentData) return JSON.parse(persistentData);
+  
+  // Fallback to sessionStorage (temporary)
+  const sessionData = sessionStorage.getItem(STORAGE_KEYS.CUSTOMERS);
+  if (sessionData) return JSON.parse(sessionData);
+  
+  // Final fallback to dummy data
+  return [...dummyCustomers];
+};
 
-  const stored = localStorage.getItem(CUSTOMERS_KEY);
-  if (stored) {
-    return JSON.parse(stored);
-  } else {
-    localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(dummyCustomers));
-    return dummyCustomers;
+const persistCustomers = (customers: Customer[], persistent: boolean = true): void => {
+  if (typeof window === 'undefined') return;
+  
+  const storage = persistent ? localStorage : sessionStorage;
+  storage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+  
+  // Sync to both storages if persistent
+  if (persistent) {
+    sessionStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
   }
 };
 
-// Save a new customer
-export const saveCustomer = (customer: Omit<Customer, 'id' | 'dateOfRegistration'>): Customer => {
+export const getCustomers = (): Customer[] => {
+  return getPersistedCustomers();
+};
+
+export const getCustomerById = (id: string): Customer | undefined => {
+  return getCustomers().find(c => c.id === id);
+};
+
+export const createCustomer = (customerData: Omit<Customer, 'id' | 'dateOfRegistration'>, persistent: boolean = true): Customer => {
   const customers = getCustomers();
-  const newCustomer = {
-    ...customer,
+  const newCustomer: Customer = {
+    ...customerData,
     id: Date.now().toString(),
     dateOfRegistration: new Date().toISOString()
   };
-  customers.push(newCustomer);
-  localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
+  
+  const updatedCustomers = [...customers, newCustomer];
+  persistCustomers(updatedCustomers, persistent);
   return newCustomer;
 };
 
-// Update an existing customer
-export const updateCustomer = (id: string, updatedData: Partial<Customer>): Customer | null => {
+export const updateCustomer = (id: string, updates: Partial<Customer>, persistent: boolean = true): Customer | null => {
   const customers = getCustomers();
   const index = customers.findIndex(c => c.id === id);
-  if (index !== -1) {
-    customers[index] = { ...customers[index], ...updatedData };
-    localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
-    return customers[index];
-  }
-  return null;
+  if (index === -1) return null;
+
+  const updatedCustomer = { ...customers[index], ...updates };
+  const updatedCustomers = [...customers];
+  updatedCustomers[index] = updatedCustomer;
+  
+  persistCustomers(updatedCustomers, persistent);
+  return updatedCustomer;
 };
 
-// Delete a customer
-export const deleteCustomer = (id: string): Customer[] => {
+export const deleteCustomer = (id: string, persistent: boolean = true): boolean => {
   const customers = getCustomers();
-  const filtered = customers.filter(c => c.id !== id);
-  localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(filtered));
-  return filtered;
-};
-
-// Get a customer by ID
-export const getCustomerById = (id: string): Customer | undefined => {
-  const customers = getCustomers();
-  return customers.find(c => c.id === id);
-};
-
-// ✅ Get all accounts (simulated: 1 account per customer)
-export const getAccounts = () => {
-  return getCustomers().map(customer => ({
-    accountId: `acc-${customer.id}`,
-    ownerId: customer.id,
-    balance: Math.floor(Math.random() * 10000), // Simulated random balance
-  }));
-};
-
-// ✅ Get recent transactions (simulated)
-export const getTransactions = () => {
-  if (typeof window === 'undefined') return [];
-
-  const stored = localStorage.getItem(TRANSACTIONS_KEY);
-  if (stored) {
-    return JSON.parse(stored);
-  } else {
-    // Simulated default transactions
-    const dummyTransactions = [
-      {
-        id: 'txn1',
-        type: 'Deposit',
-        amount: 1200.5,
-        date: new Date().toISOString(),
-        status: 'Approved'
-      },
-      {
-        id: 'txn2',
-        type: 'Withdrawal',
-        amount: 540.75,
-        date: new Date().toISOString(),
-        status: 'Pending'
-      },
-      {
-        id: 'txn3',
-        type: 'Transfer',
-        amount: 310.0,
-        date: new Date().toISOString(),
-        status: 'Failed'
-      }
-    ];
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(dummyTransactions));
-    return dummyTransactions;
+  const updatedCustomers = customers.filter(c => c.id !== id);
+  const success = updatedCustomers.length < customers.length;
+  
+  if (success) {
+    persistCustomers(updatedCustomers, persistent);
   }
+  return success;
+}
+
+export const getAccountById = (id: string): Account | undefined => {
+  return getAccounts().find(a => a.id === id);
+};
+/*export const createCustomer = (customerData: Omit<Customer, 'id' | 'dateOfRegistration'>): Customer => {
+  const customers = getCustomers();
+  const newCustomer: Customer = {
+    ...customerData,
+    id: Date.now().toString(),
+    dateOfRegistration: new Date().toISOString()
+  };
+  
+  const updatedCustomers = [...customers, newCustomer];
+  sessionStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(updatedCustomers));
+  return newCustomer;
+};
+export const updateCustomer = (id: string, updates: Partial<Customer>): Customer | null => {
+  const customers = getCustomers();
+  const index = customers.findIndex(c => c.id === id);
+  if (index === -1) return null;
+
+  const updatedCustomer = { ...customers[index], ...updates };
+  const updatedCustomers = [...customers];
+  updatedCustomers[index] = updatedCustomer;
+  
+   
+  localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(updatedCustomers));
+  return updatedCustomer;
+};
+
+export const deleteCustomer = (id: string): boolean => {
+  const customers = getCustomers();
+  const updatedCustomers = customers.filter(c => c.id !== id);
+  const success = updatedCustomers.length < customers.length;
+  
+  if (success) {
+    sessionStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(updatedCustomers));
+  }
+  return success;
+};*/
+
+
+export const getCustomerByUserId = (userId: string): Customer | undefined => {
+  const user = dummyUsers.find(u => u.id === userId);
+  if (!user) return undefined;
+  
+  if (user.role === 'admin') {
+    // Admin might not have a customer record
+    return undefined;
+  }
+  
+  // For customers, find their customer record
+  return getCustomers().find(c => c.id === user.customerId);
+};
+export const getAllCustomers = (): Customer[] => {
+  return getCustomers();
+};
+export const getAccountsByCustomer = (customerId: string): Account[] => {
+  return getAccounts().filter(a => a.customerId === customerId);
+};
+
+export const getCustomerTransactions = (customerId: string): Transaction[] => {
+  const customerAccounts = getAccountsByCustomer(customerId);
+  return getTransactions().filter(t => 
+    customerAccounts.some(a => a.id === t.accountId)
+  );
+};
+
+export const searchCustomers = (query: string): Customer[] => {
+  const lowerQuery = query.toLowerCase();
+  return getCustomers().filter(c => 
+    c.fullName.toLowerCase().includes(lowerQuery) || 
+    c.email.toLowerCase().includes(lowerQuery)
+  );
 };

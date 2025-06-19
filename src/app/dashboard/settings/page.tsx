@@ -5,12 +5,8 @@ import {
   FiUser, 
   FiLock, 
   FiBell, 
-  FiCreditCard, 
   FiShield,
-  FiMoon,
-  FiSun,
-  FiMonitor
-} from 'react-icons/fi';
+  FiSun} from 'react-icons/fi';
 import { ThemeSwitcher } from '@/components/ui/ThemeSwitcher';
 import { useTheme } from 'next-themes';
 
@@ -57,7 +53,7 @@ export default function SettingsPage() {
   });
   const [dashboardDensity, setDashboardDensity] = useState<DashboardDensity>('normal');
   const [isLoading, setIsLoading] = useState(true);
-  const { theme, systemTheme } = useTheme();
+  useTheme();
   const [activeTheme, setActiveTheme] = useState<'light' | 'dark' | 'system'>('system');
 
   // Load saved settings on component mount
@@ -81,7 +77,7 @@ export default function SettingsPage() {
     };
 
     loadSettings();
-  }, []);
+  }, [notifications, privacySettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -316,7 +312,7 @@ export default function SettingsPage() {
                   </h3>
                   <ThemeSwitcher 
                     activeTheme={activeTheme}
-                    onThemeChange={(theme) => setActiveTheme(theme)}
+                    onThemeChange={(theme: string | ((prevState: "light" | "dark" | "system") => "light" | "dark" | "system")) => setActiveTheme(theme)}
                   />
                 </div>
                 

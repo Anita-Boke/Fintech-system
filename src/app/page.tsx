@@ -25,19 +25,19 @@ export default function Home() {
         </p>
         <div className="flex space-x-4">
           <Link 
-            href="/dashboard"
+            href="/login"
             className="bg-white text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors"
           >
-            Go to Dashboard
+            Login
           </Link>
           <Link 
-            href="/dashboard/customers"
+            href="/signup"
             className="bg-white text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors"
           >
-            Manage Customers
+            Sign Up
           </Link>
         </div>
       </div>
     </div>
   );
-}
+}    

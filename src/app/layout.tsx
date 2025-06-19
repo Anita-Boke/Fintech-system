@@ -3,6 +3,7 @@ import { GeistSans, GeistMono } from "geist/font";
 import "./globals.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ThemeWrapper } from "@/contexts/ThemeContext";
+import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "Fintech Dashboard",
@@ -21,11 +22,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="antialiased">
-        <ThemeProvider>
-          <ThemeWrapper>
-            {children}
-          </ThemeWrapper>
-        </ThemeProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <ThemeWrapper>
+              {children}
+            </ThemeWrapper>
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

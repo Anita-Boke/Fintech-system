@@ -1,56 +1,43 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Customer } from '@/lib/constants';
-import { saveCustomer, updateCustomer, getCustomerById } from '@/lib/services/customerService';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { createCustomer, updateCustomer, getCustomerByUserId } from '@/lib/services/customerService';
 import Link from 'next/link';
 
-interface CustomerFormProps {
-  customerId?: string;
-}
-
-export default function CustomerForm({ customerId }: CustomerFormProps) {
+export default function CustomerForm({ customerId }: { customerId?: string }) {
   const router = useRouter();
-  const [customer, setCustomer] = useState<Partial<Customer>>({
+  const [formData, setFormData] = useState<{
+    fullName: string;
+    email: string;
+    phone: string;
+    customerType: 'Individual' | 'Business';
+    profilePicture: string;
+  }>({
     fullName: '',
     email: '',
     phone: '',
     customerType: 'Individual',
     profilePicture: ''
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (customerId) {
-      const existingCustomer = getCustomerById(customerId);
-      if (existingCustomer) {
-        setCustomer(existingCustomer);
-      }
+      const customer = getCustomerByUserId(customerId);
+      if (customer) setFormData(customer);
     }
   }, [customerId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      if (customerId && customer.id) {
-        await updateCustomer(customerId, customer);
-        toast.success('Customer updated successfully');
-      } else {
-        await saveCustomer({
-          fullName: customer.fullName || '',
-          email: customer.email || '',
-          phone: customer.phone || '',
-          customerType: customer.customerType || 'Individual',
-          profilePicture: customer.profilePicture || ''
-        });
-        toast.success('Customer created successfully');
-      }
-      router.push('/dashboard/customers');
-    } catch (error) {
-      toast.error('Error saving customer');
-    }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: name === 'customerType' 
+        ? value as 'Individual' | 'Business'
+        : value 
+    }));
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,37 +45,72 @@ export default function CustomerForm({ customerId }: CustomerFormProps) {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCustomer({ ...customer, profilePicture: reader.result as string });
+        setFormData(prev => ({ ...prev, profilePicture: reader.result as string }));
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const validateForm = () => {
+    if (!formData.fullName.trim()) {
+      toast.error('Full name is required');
+      return false;
+    }
+    if (!formData.email.includes('@')) {
+      toast.error('Valid email is required');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      if (customerId) {
+        await updateCustomer(customerId, formData);
+        toast.success('Customer updated successfully');
+      } else {
+        await createCustomer(formData);
+        toast.success('Customer created successfully');
+      }
+      router.push('/dashboard/customers');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      toast.error('Failed to save customer');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6 text-gray-700">
+      <h1 className="text-2xl font-semibold mb-6">
         {customerId ? 'Edit Customer' : 'Create New Customer'}
       </h1>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+          <label className="block text-sm font-medium text-black mb-1">Full Name</label>
           <input
             type="text"
-            value={customer.fullName || ''}
-            onChange={(e) => setCustomer({ ...customer, fullName: e.target.value })}
-            className="w-full p-2 border  border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
+            name="fullName"
+            value={formData.fullName}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <label className="block text-sm font-medium text-black mb-1">Email</label>
           <input
             type="email"
-            value={customer.email || ''}
-            onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-            className="w-full p-2 border  border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
@@ -97,22 +119,21 @@ export default function CustomerForm({ customerId }: CustomerFormProps) {
           <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
           <input
             type="tel"
-            value={customer.phone || ''}
-            onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-            className="w-full p-2 border  border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Customer Type</label>
+          <label className="block text-sm font-medium text-black mb-1">Customer Type</label>
           <select
-            value={customer.customerType || 'Individual'}
-            onChange={(e) => setCustomer({ 
-              ...customer, 
-              customerType: e.target.value as 'Individual' | 'Business' 
-            })}
-            className="w-full p-2 border border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
+            name="customerType"
+            value={formData.customerType}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           >
             <option value="Individual">Individual</option>
@@ -126,14 +147,14 @@ export default function CustomerForm({ customerId }: CustomerFormProps) {
             type="file"
             accept="image/*"
             onChange={handleImageUpload}
-            className="w-full p-2 border border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-400"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          {customer.profilePicture && (
+          {formData.profilePicture && (
             <div className="mt-2">
               <img 
-                src={customer.profilePicture} 
+                src={formData.profilePicture} 
                 alt="Preview" 
-                className="h-24 w-24 object-cover rounded border  "
+                className="h-24 w-24 object-cover rounded border"
               />
             </div>
           )}
@@ -142,18 +163,22 @@ export default function CustomerForm({ customerId }: CustomerFormProps) {
         <div className="flex justify-end space-x-3 pt-4">
           <Link
             href="/dashboard/customers"
-            className="px-4 py-2 border rounded text-black hover:bg-gray-300 transition-colors"
+            className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-100 transition-colors"
           >
             Cancel
           </Link>
           <button 
             type="submit" 
-            className="bg-white text-black px-4 py-2 rounded hover:bg-gray-300 transition-colors border"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+            disabled={isLoading}
           >
-            {customerId ? 'Update Customer' : 'Create Customer'}
+            {isLoading ? 'Saving...' : customerId ? 'Update Customer' : 'Create Customer'}
           </button>
         </div>
       </form>
     </div>
   );
 }
+
+
+

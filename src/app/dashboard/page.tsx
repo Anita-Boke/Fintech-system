@@ -1,11 +1,20 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { getCustomers, getAccounts, getTransactions } from '@/lib/services/customerService';
 import { FiUsers, FiCreditCard, FiDollarSign, FiPlus } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { 
+  getCustomerByUserId,
+  getAccountsByCustomer,
+} from '@/lib/services/customerService';
+// Import services 
+import {  getCustomerTransactions } from '@/lib/services/transactionService';
 
+
+// Use the imported functions directly
+// Remove your local function declarations and use the imported ones directly
 interface Customer {
   id: string;
   fullName: string;
@@ -16,50 +25,79 @@ interface Customer {
 interface Account {
   id: string;
   accountNumber: string;
+  balance:number;
+  userId?:string;
 }
 
 interface Transaction {
-  id: string;
+  id: unknown;
+  accountId: string;
   type: string;
   date: string;
   amount: number;
   status: 'Approved' | 'Pending' | 'Rejected';
+  toAccountId?:string;
+  description:string;
 }
 
+// Helper function to safely fetch data
+
 export default function DashboardPage() {
+   const { data: session } = useSession();
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isAdmin = session?.user?.role === 'admin';
 
-  const refreshData = async () => {
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        setCustomers(getCustomerByUserId());
+        setAccounts(getAccountsByCustomer());
+        setTransactions(getCustomerTransactions());
+      } catch (error) {
+        toast.error('Failed to load dashboard data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+  /*const refreshData = async () => {
+    setIsLoading(true);
     try {
+      // Use Promise.all for parallel requests with safeFetch wrapper
       const [customersData, accountsData, transactionsData] = await Promise.all([
-        getCustomers(),
-        getAccounts(),
-        getTransactions()
+        safeFetch(() => getCustomers()),
+        safeFetch(() => getAccounts()),
+        safeFetch(() => getTransactions())
       ]);
+
       setCustomers(customersData || []);
       setAccounts(accountsData || []);
       setTransactions(transactionsData || []);
     } catch (error) {
       toast.error('Failed to load dashboard data');
       console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      await refreshData();
-      setIsLoading(false);
-    };
-
-    loadData();
-    const intervalId = setInterval(refreshData, 5000);
-    return () => clearInterval(intervalId);
-  }, []);
+    refreshData();
+    
+    // Only set interval in development for testing
+    if (process.env.NODE_ENV === 'development') {
+      const intervalId = setInterval(refreshData, 30000); // 30 seconds
+      return () => clearInterval(intervalId);
+    }
+  }, []);*/
 
   if (isLoading) {
     return (
@@ -207,4 +245,18 @@ export default function DashboardPage() {
       </div>
     </div>
   );
+}
+
+function getCustomerByUserId(): Promise<unknown> {
+  throw new Error('Function not implemented.');
+}
+
+
+function getAccountsByCustomer(): Promise<unknown> {
+  throw new Error('Function not implemented.');
+}
+
+
+function getCustomerTransactions(): Promise<unknown> {
+  throw new Error('Function not implemented.');
 }

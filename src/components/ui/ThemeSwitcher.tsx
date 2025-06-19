@@ -11,7 +11,7 @@ export function ThemeSwitcher() {
       <div className="flex items-center justify-between">
         <div>
           <label className="block text-sm font-medium text-gray-700">Theme</label>
-          <p className="text-sm text-gray-500">Customize your application's appearance</p>
+          <p className="text-sm text-gray-500">Customize your application&apos;s appearance</p>
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2">

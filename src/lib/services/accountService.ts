@@ -1,3 +1,4 @@
+// src/lib/services/accountService.ts
 import { Account, dummyAccounts } from '../constants';
 
 const ACCOUNTS_KEY = 'fintech-accounts';
@@ -5,13 +6,17 @@ const ACCOUNTS_KEY = 'fintech-accounts';
 export const getAccounts = (): Account[] => {
   if (typeof window === 'undefined') return [];
   
-  const stored = localStorage.getItem(ACCOUNTS_KEY);
+  const stored = sessionStorage.getItem(ACCOUNTS_KEY);
   if (stored) {
     return JSON.parse(stored);
   } else {
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(dummyAccounts));
+    sessionStorage.setItem(ACCOUNTS_KEY, JSON.stringify(dummyAccounts));
     return dummyAccounts;
   }
+};
+export const getAccount = (accountId: string): Account | undefined => {
+  const accounts = getAccounts();
+  return accounts.find(account => account.id === accountId);
 };
 
 export const saveAccount = (account: Omit<Account, 'id' | 'accountNumber'>): Account => {
@@ -22,7 +27,7 @@ export const saveAccount = (account: Omit<Account, 'id' | 'accountNumber'>): Acc
     accountNumber: `ACC${Math.floor(10000 + Math.random() * 90000)}`
   };
   accounts.push(newAccount);
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  sessionStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
   return newAccount;
 };
 
@@ -31,7 +36,7 @@ export const updateAccount = (id: string, updatedData: Partial<Account>): Accoun
   const index = accounts.findIndex(a => a.id === id);
   if (index !== -1) {
     accounts[index] = { ...accounts[index], ...updatedData };
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+    sessionStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
     return accounts[index];
   }
   return null;
@@ -40,7 +45,7 @@ export const updateAccount = (id: string, updatedData: Partial<Account>): Accoun
 export const deleteAccount = (id: string): Account[] => {
   const accounts = getAccounts();
   const filtered = accounts.filter(a => a.id !== id);
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(filtered));
+  sessionStorage.setItem(ACCOUNTS_KEY, JSON.stringify(filtered));
   return filtered;
 };
 
@@ -48,7 +53,21 @@ export const getAccountById = (id: string): Account | undefined => {
   const accounts = getAccounts();
   return accounts.find(a => a.id === id);
 };
+// src/lib/services/accountService.ts
 
+export const getAllAccounts = (): Account[] => {
+  return getAccounts();
+};
+
+export const getCustomerAccounts = (customerId: string): Account[] => {
+  return getAccounts().filter(a => a.customerId === customerId);
+};
+
+export const getUserAccounts = (userId: string, isAdmin: boolean): Account[] => {
+  return isAdmin 
+    ? getAllAccounts()
+    : getCustomerAccounts(userId); // Assuming userId = customerId in dummy data
+};
 export const getAccountsByCustomer = (customerId: string): Account[] => {
   const accounts = getAccounts();
   return accounts.filter(a => a.customerId === customerId);

@@ -1,59 +1,55 @@
+// src/components/accounts/AccountForm.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Account } from '@/lib/constants';
-import { saveAccount, updateAccount, getAccountById } from '@/lib/services/accountService';
-import { getCustomers } from '@/lib/services/customerService';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { createAccount, updateAccount, getAccountById } from '@/lib/services/accountService';
+import { getCustomers } from '@/lib/services/customerService';
 import Link from 'next/link';
 
-interface AccountFormProps {
-  accountId?: string;
-}
-
-export default function AccountForm({ accountId }: AccountFormProps) {
+export default function AccountForm({ accountId }: { accountId?: string }) {
   const router = useRouter();
   const [customers, setCustomers] = useState(getCustomers());
-  const [formData, setFormData] = useState<Partial<Account>>({
+  const [formData, setFormData] = useState({
     customerId: '',
     accountType: 'Savings',
     balance: 0,
     status: 'Active'
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (accountId) {
       const account = getAccountById(accountId);
       if (account) setFormData(account);
     }
+    setCustomers(getCustomers());
   }, [accountId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
     try {
-      if (accountId && formData.id) {
+      if (accountId) {
         await updateAccount(accountId, formData);
         toast.success('Account updated successfully');
       } else {
-        await saveAccount({
-          customerId: formData.customerId || '',
-          accountType: formData.accountType || 'Savings',
-          balance: formData.balance || 0,
-          status: formData.status || 'Active'
-        });
+        await createAccount(formData);
         toast.success('Account created successfully');
       }
       router.push('/dashboard/accounts');
     } catch (error) {
       toast.error('Error saving account');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6 text-black">
+      <h1 className="text-2xl font-semibold mb-6">
         {accountId ? 'Edit Account' : 'Create New Account'}
       </h1>
       
@@ -61,9 +57,9 @@ export default function AccountForm({ accountId }: AccountFormProps) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
           <select
-            value={formData.customerId || ''}
+            value={formData.customerId}
             onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
-            className="w-full p-2 border  border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
+            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
             disabled={!!accountId}
           >
@@ -79,12 +75,9 @@ export default function AccountForm({ accountId }: AccountFormProps) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
           <select
-            value={formData.accountType || 'Savings'}
-            onChange={(e) => setFormData({ 
-              ...formData, 
-              accountType: e.target.value as 'Savings' | 'Checking' | 'Business' 
-            })}
-            className="w-full p-2 border border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700 "
+            value={formData.accountType}
+            onChange={(e) => setFormData({ ...formData, accountType: e.target.value })}
+            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           >
             <option value="Savings">Savings</option>
@@ -98,9 +91,9 @@ export default function AccountForm({ accountId }: AccountFormProps) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Initial Balance</label>
             <input
               type="number"
-              value={formData.balance || 0}
+              value={formData.balance}
               onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
-              className="w-full p-2 border border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
+              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
               min="0"
               step="0.01"
@@ -111,12 +104,9 @@ export default function AccountForm({ accountId }: AccountFormProps) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
           <select
-            value={formData.status || 'Active'}
-            onChange={(e) => setFormData({ 
-              ...formData, 
-              status: e.target.value as 'Active' | 'Suspended' | 'Closed' 
-            })}
-            className="w-full p-2 border border-gray-700 rounded focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           >
             <option value="Active">Active</option>
@@ -128,15 +118,16 @@ export default function AccountForm({ accountId }: AccountFormProps) {
         <div className="flex justify-end space-x-3 pt-4">
           <Link
             href="/dashboard/accounts"
-            className="px-4 py-2 border rounded text-black hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-100 transition-colors"
           >
             Cancel
           </Link>
           <button 
             type="submit" 
-            className="bg-primary text-black px-4 py-2 rounded hover:bg-primary-dark transition-colors"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+            disabled={isLoading}
           >
-            {accountId ? 'Update Account' : 'Create Account'}
+            {isLoading ? 'Saving...' : accountId ? 'Update Account' : 'Create Account'}
           </button>
         </div>
       </form>

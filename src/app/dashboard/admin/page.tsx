@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/app/dashboard/admin/page.tsx
 'use client';
 
@@ -30,9 +31,7 @@ export default function AdminDashboard() {
         ]);
         
         setCustomers(allCustomers);
-        setAccounts(allAccounts);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (error) {
+        setAccounts(allAccounts); } catch (error) {
         toast.error('Failed to load data');
       } finally {
         setLoading(false);

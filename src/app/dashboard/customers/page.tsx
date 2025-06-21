@@ -19,63 +19,79 @@ export default function CustomerDashboard() {
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!session?.user?.id) return;
+useEffect(() => {
+  if (!session?.user?.id || !session.user.email) return;
 
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        
-        // Get user role
-        const user = await getUserById(session.user.id);
-        const isAdmin = user?.role === 'admin';
-        
-        if (process.env.NODE_ENV === 'development') {
-          // Use dummy data in development
-          if (isAdmin) {
-            setAllCustomers(dummyCustomers);
-          } else {
-            setCustomer(dummyCustomers[0]);
-          }
-          setLoading(false);
-          return;
-        }
-
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get user role
+      const user = await getUserById(session.user.id);
+      const isAdmin = user?.role === 'admin';
+      
+      if (process.env.NODE_ENV === 'development') {
+        // Use dummy data in development
         if (isAdmin) {
-          try {
-            // Admin sees all customers
-            const customersData = await getCustomers();
-            setAllCustomers(customersData);
-          } catch (apiError) {
-            console.error('API failed:', apiError);
-            setAllCustomers(dummyCustomers);
-            toast.error('Failed to load customer data');
-          }
+          setAllCustomers(dummyCustomers);
+           setCustomer(null);
         } else {
-          // Customer sees only their data
-          try {
-            const customerData = await getCustomerByUserId(session.user.id);
-            if (!customerData) {
-              toast.error('Customer not found');
-              return;
-            }
-            setCustomer(customerData);
-          } catch (apiError) {
-            console.error('API failed:', apiError);
-            setCustomer(dummyCustomers[0]);
+          // Find the customer that matches the logged-in user's email
+          const matchedCustomer = dummyCustomers.find(c => c.email === session.user.email);
+          if (matchedCustomer) {
+            setCustomer(matchedCustomer);
+            setAllCustomers([]);
+          } else {
+            toast.error('No matching customer found in dummy data');
+          }
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (isAdmin) {
+        try {
+          // Admin sees all customers
+          const customersData = await getCustomers();
+          setAllCustomers(customersData);
+          setCustomer(null);
+        } catch (apiError) {
+          console.error('API failed:', apiError);
+          setAllCustomers(dummyCustomers);
+          toast.error('Failed to load customer data');
+        }
+      } else {
+        // Customer sees only their data
+        try {
+          const customerData = await getCustomerByUserId(session.user.id);
+          if (!customerData) {
+            toast.error('Customer not found');
+            return;
+          }
+          setCustomer(customerData);
+           setAllCustomers([]);
+        } catch (apiError) {
+          console.error('API failed:', apiError);
+          // Try to find matching customer in dummy data by email as fallback
+          const matchedCustomer = dummyCustomers.find(c => c.email === session.user.email);
+          if (matchedCustomer) {
+            setCustomer(matchedCustomer);
+            toast.error('Using dummy data as fallback');
+          } else {
             toast.error('Failed to load your profile');
           }
         }
-      } catch (error) {
-        console.error('Failed to load data:', error);
-        toast.error('Failed to load data');
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    loadData();
-  }, [session]);
+  loadData();
+}, [session]);
 
   if (loading) {
     return (
@@ -158,11 +174,11 @@ export default function CustomerDashboard() {
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold text-black">Welcome, {customer.fullName}</h1>
               <button
-                onClick={() => router.push('/profile/edit')}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
-              >
-                <FiEdit /> Edit Profile
-              </button>
+  onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
+  className="w-full flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 text-sm border-t pt-3"
+>
+  <FiEdit /> View/Edit Profile
+</button>
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow">

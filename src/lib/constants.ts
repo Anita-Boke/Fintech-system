@@ -5,6 +5,9 @@
    ================= */
 
 export interface Customer {
+  firstName: unknown;
+  lastName: unknown;
+ // userId: string;
   id: string;
   fullName: string;
   email: string;
@@ -18,6 +21,7 @@ export interface Account {
   id: string;
   customerId: string;
   accountNumber: string;
+   type: string;
   accountType: 'Savings' | 'Checking' | 'Business';
   balance: number;
   status: 'Active' | 'Suspended' | 'Closed';
@@ -87,8 +91,11 @@ export const dummyCustomers: Customer[] = [
     phone: '0110569188',
     dateOfRegistration: '2024-01-15',
     customerType: 'Individual',
-    profilePicture: ''
+    profilePicture: '',
+    firstName: undefined,
+    lastName: undefined
   },
+  
   {
     id: 'cus_002',
     fullName: 'Bethwel Opilo',
@@ -96,7 +103,9 @@ export const dummyCustomers: Customer[] = [
     phone: '0712985678',
     dateOfRegistration: '2023-02-20',
     customerType: 'Business',
-    profilePicture: ''
+    profilePicture: '',
+    firstName: undefined,
+    lastName: undefined
   },
   {
     id: 'cus_003',
@@ -105,7 +114,9 @@ export const dummyCustomers: Customer[] = [
     phone: '0712345678',
     dateOfRegistration: '2023-03-15',
     customerType: 'Business',
-    profilePicture: ''
+    profilePicture: '',
+    firstName: undefined,
+    lastName: undefined
   }
 ];
 
@@ -116,7 +127,8 @@ export const dummyAccounts: Account[] = [
     accountNumber: 'SAV0010001',
     accountType: 'Savings',
     balance: 5000.00,
-    status: 'Active'
+    status: 'Active',
+    type: ""
   },
   {
     id: 'acc_002',
@@ -124,7 +136,8 @@ export const dummyAccounts: Account[] = [
     accountNumber: 'BUS0020001',
     accountType: 'Business',
     balance: 25000.00,
-    status: 'Active'
+    status: 'Active',
+    type: ""
   },
   {
     id: 'acc_003',
@@ -132,7 +145,8 @@ export const dummyAccounts: Account[] = [
     accountNumber: 'CHK0010002',
     accountType: 'Checking',
     balance: 1200.00,
-    status: 'Active'
+    status: 'Active',
+    type: ""
   },
   {
     id: 'acc_004',
@@ -140,7 +154,8 @@ export const dummyAccounts: Account[] = [
     accountNumber: 'BUS0030001',
     accountType: 'Business',
     balance: 18000.00,
-    status: 'Active'
+    status: 'Active',
+    type: ""
   }
 ];
 

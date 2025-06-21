@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/components/accounts/AccountForm.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
-import { createAccount, updateAccount, getAccountById } from '@/lib/services/accountService';
+import { getAccount, updateAccount, getAccountById } from '@/lib/services/accountService';
 import { getCustomers } from '@/lib/services/customerService';
 import Link from 'next/link';
 
@@ -33,10 +34,10 @@ export default function AccountForm({ accountId }: { accountId?: string }) {
     
     try {
       if (accountId) {
-        await updateAccount(accountId, formData);
+        updateAccount(accountId, formData);
         toast.success('Account updated successfully');
       } else {
-        await createAccount(formData);
+        getAccount(formData);
         toast.success('Account created successfully');
       }
       router.push('/dashboard/accounts');

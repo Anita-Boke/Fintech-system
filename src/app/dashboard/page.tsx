@@ -36,13 +36,14 @@ export default function DashboardPage() {
   
   const isAdmin = session?.user?.role === 'admin';
   const userId = session?.user?.id;
+  const userEmail = session?.user?.email;
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true);
         
-        if (!userId) return;
+        if (!userId || !userEmail) return;
 
         if (process.env.NODE_ENV === 'development') {
           // Use dummy data in development
@@ -51,10 +52,15 @@ export default function DashboardPage() {
             setAccounts(dummyAccounts);
             setTransactions(dummyTransactions);
           } else {
-            const customerData = dummyCustomers.find(c => c.id === 'cus_001') || dummyCustomers[0];
-            setCustomers([customerData]);
-            setAccounts(dummyAccounts.filter(acc => acc.customerId === customerData.id));
-            setTransactions(dummyTransactions.filter(txn => txn.customerId === customerData.id));
+            // Find customer by logged-in user's email
+            const customerData = dummyCustomers.find(c => c.email === userEmail);
+            if (customerData) {
+              setCustomers([customerData]);
+              setAccounts(dummyAccounts.filter(acc => acc.customerId === customerData.id));
+              setTransactions(dummyTransactions.filter(txn => txn.customerId === customerData.id));
+            } else {
+              toast.error('No matching customer found in dummy data');
+            }
           }
           setIsLoading(false);
           return;
@@ -79,9 +85,13 @@ export default function DashboardPage() {
               getCustomerTransactions(userId)
             ]);
 
-            setCustomers(customerData ? [customerData] : []);
-            setAccounts(accountsData || []);
-            setTransactions(transactionsData || []);
+            if (customerData) {
+              setCustomers([customerData]);
+              setAccounts(accountsData || []);
+              setTransactions(transactionsData || []);
+            } else {
+              toast.error('Customer profile not found');
+            }
           }
         } catch (apiError) {
           console.warn('API failed, using dummy data:', apiError);
@@ -90,12 +100,17 @@ export default function DashboardPage() {
             setAccounts(dummyAccounts);
             setTransactions(dummyTransactions);
           } else {
-            const customerData = dummyCustomers.find(c => c.id === 'cus_001') || dummyCustomers[0];
-            setCustomers([customerData]);
-            setAccounts(dummyAccounts.filter(acc => acc.customerId === customerData.id));
-            setTransactions(dummyTransactions.filter(txn => txn.customerId === customerData.id));
+            // Fallback to finding customer by email in dummy data
+            const customerData = dummyCustomers.find(c => c.email === userEmail);
+            if (customerData) {
+              setCustomers([customerData]);
+              setAccounts(dummyAccounts.filter(acc => acc.customerId === customerData.id));
+              setTransactions(dummyTransactions.filter(txn => txn.customerId === customerData.id));
+              toast.error('Using dummy data as fallback');
+            } else {
+              toast.error('Failed to load your profile');
+            }
           }
-          toast.error('Failed to load live data');
         }
       } catch (error) {
         toast.error('Failed to load dashboard data');
@@ -108,7 +123,7 @@ export default function DashboardPage() {
     if (session) {
       loadData();
     }
-  }, [session, userId, isAdmin]);
+  }, [session, userId, isAdmin, userEmail]);
 
   if (isLoading) {
     return (
@@ -129,6 +144,7 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-bold mb-6 text-black">
         {isAdmin ? 'Admin Dashboard' : `Welcome, ${currentCustomer}`}
       </h1>
+
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {[

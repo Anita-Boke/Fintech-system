@@ -14,6 +14,7 @@ import { dummyAccounts, dummyCustomers } from '@/lib/constants';
 interface AccountListProps {
   accounts: Account[];
   isAdmin: boolean;
+  
 }
 
 export default function AccountList() {

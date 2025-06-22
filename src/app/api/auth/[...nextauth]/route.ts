@@ -17,6 +17,12 @@ const customers = [
     fullName: "Bethwel",
     password: "Ambass",
   },
+    {
+    id: "3",
+    email: "max@gmail.com",
+    fullName: "Max",
+    password: "wintah",
+  },
 ] as const;
 
 // Admin credentials should come from environment variables in production

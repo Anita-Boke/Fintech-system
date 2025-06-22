@@ -8,13 +8,28 @@ import { toast } from 'react-toastify';
 import { saveTransaction, updateTransaction, getTransactionById } from '@/lib/services/transactionService';
 import { getAccounts } from '@/lib/services/accountService';
 import Link from 'next/link';
+import { dummyCustomers, dummyAccounts, type Account, type Transaction } from '@/lib/constants';
 
-export default function TransactionForm({ transactionId }: { transactionId?: string }) {
+interface TransactionFormProps {
+  transactionId?: string;
+}
+
+interface FormData {
+  accountId: string;
+  type: 'Deposit' | 'Withdrawal' | 'Transfer';
+  amount: number;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  toAccountId: string;
+  description: string;
+}
+
+export default function TransactionForm({ transactionId }: TransactionFormProps) {
   const { data: session } = useSession();
   const router = useRouter();
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+  const [customerAccounts, setCustomerAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     accountId: '',
     type: 'Deposit',
     amount: 0,
@@ -28,21 +43,42 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
   useEffect(() => {
     const loadData = async () => {
       try {
+        setIsLoading(true);
         const loadedAccounts = await getAccounts();
-        setAccounts(loadedAccounts);
+        setAllAccounts(loadedAccounts);
+        
+        // Filter accounts based on user role
+        if (!isAdmin) {
+          const customer = dummyCustomers.find(c => c.email === session?.user?.email);
+          const customerAccts = loadedAccounts.filter(acc => acc.customerId === customer?.id);
+          setCustomerAccounts(customerAccts);
+        } else {
+          setCustomerAccounts(loadedAccounts);
+        }
         
         if (transactionId) {
           const transaction = await getTransactionById(transactionId);
-          if (transaction) setFormData(transaction);
+          if (transaction) {
+            setFormData({
+              accountId: transaction.accountId,
+              type: transaction.type,
+              amount: transaction.amount,
+              status: transaction.status,
+              toAccountId: transaction.toAccountId || '',
+              description: transaction.description || ''
+            });
+          }
         }
       } catch (error) {
         toast.error('Failed to load transaction data');
         console.error(error);
+      } finally {
+        setIsLoading(false);
       }
     };
     
     loadData();
-  }, [transactionId]);
+  }, [transactionId, session?.user?.email, isAdmin]);
 
   const validateForm = (): boolean => {
     if (!formData.accountId) {
@@ -67,11 +103,13 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
     setIsLoading(true);
 
     try {
-      const status = isAdmin ? formData.status : 'Pending';
-      const transactionData = {
+      const transactionData: Transaction = {
         ...formData,
-        status,
-        userId: session?.user?.id
+        id: transactionId || `txn_${Date.now()}`,
+        status: isAdmin ? formData.status : 'Pending',
+        userId: session?.user?.id || '',
+        customerId: dummyCustomers.find(c => c.email === session?.user?.email)?.id || '',
+        date: new Date().toISOString()
       };
 
       if (transactionId) {
@@ -92,8 +130,12 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
     }
   };
 
+  const getDisplayAccounts = () => {
+    return isAdmin ? allAccounts : customerAccounts;
+  };
+
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto p-4">
       <h1 className="text-2xl font-semibold mb-6">
         {transactionId ? 'Edit Transaction' : 'Create New Transaction'}
       </h1>
@@ -114,16 +156,17 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
           <select
-            value={formData.accountId}
-            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-            className="w-full p-2 border border-gray-300 rounded"
             required
+            value={formData.accountId}
+            onChange={(e) => setFormData({...formData, accountId: e.target.value})}
+            className="w-full p-2 border border-gray-300 rounded"
             disabled={!!transactionId}
           >
             <option value="">Select Account</option>
-            {accounts.map(account => (
+            {getDisplayAccounts().map((account) => (
               <option key={account.id} value={account.id}>
-                {account.accountNumber} (${account.balance.toFixed(2)})
+                {account.accountNumber} - {account.accountType} (${account.balance?.toFixed(2)})
+                {isAdmin && ` - ${dummyCustomers.find(c => c.id === account.customerId)?.fullName}`}
               </option>
             ))}
           </select>
@@ -134,8 +177,13 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
           <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
           <select
             value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+            onChange={(e) => setFormData({ 
+              ...formData, 
+              type: e.target.value as 'Deposit' | 'Withdrawal' | 'Transfer',
+              toAccountId: '' // Reset when type changes
+            })}
             className="w-full p-2 border border-gray-300 rounded"
+            disabled={!!transactionId}
           >
             <option value="Deposit">Deposit</option>
             <option value="Withdrawal">Withdrawal</option>
@@ -152,13 +200,15 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
               onChange={(e) => setFormData({ ...formData, toAccountId: e.target.value })}
               className="w-full p-2 border border-gray-300 rounded"
               required
+              disabled={!!transactionId}
             >
               <option value="">Select Destination Account</option>
-              {accounts
+              {allAccounts
                 .filter(account => account.id !== formData.accountId)
-                .map(account => (
+                .map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.accountNumber} (${account.balance.toFixed(2)})
+                    {account.accountNumber} (${account.balance?.toFixed(2)})
+                    {isAdmin && ` - ${dummyCustomers.find(c => c.id === account.customerId)?.fullName}`}
                   </option>
                 ))}
             </select>
@@ -171,11 +221,12 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
           <input
             type="number"
             value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+            onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
             className="w-full p-2 border border-gray-300 rounded"
             required
-            min="1"
+            min="0.01"
             step="0.01"
+            disabled={!!transactionId && !isAdmin}
           />
         </div>
 
@@ -185,7 +236,10 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select
               value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              onChange={(e) => setFormData({ 
+                ...formData, 
+                status: e.target.value as 'Pending' | 'Approved' | 'Rejected' 
+              })}
               className="w-full p-2 border border-gray-300 rounded"
             >
               <option value="Pending">Pending</option>
@@ -208,13 +262,19 @@ export default function TransactionForm({ transactionId }: { transactionId?: str
         </div>
 
         {/* Submit Button */}
-        <div className="flex justify-end">
+        <div className="flex justify-end space-x-4 pt-4">
+          <Link
+            href={isAdmin ? '/dashboard/transactions' : '/dashboard/customer'}
+            className="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300"
+          >
+            Cancel
+          </Link>
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             disabled={isLoading}
           >
-            {transactionId ? 'Update Transaction' : 'Create Transaction'}
+            {isLoading ? 'Processing...' : transactionId ? 'Update Transaction' : 'Create Transaction'}
           </button>
         </div>
       </form>

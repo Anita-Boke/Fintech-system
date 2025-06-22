@@ -57,6 +57,13 @@ export const authOptions: NextAuthOptions = {
      name: "Regular Customer",
      role: "customer"
   },
+   {
+    id: "4",
+    email: "max@gmail.com",
+    password: "wintah",
+     name: "Regular Customer",
+     role: "customer"
+  },
         ];
 
         const user = mockUsers.find(user => user.email === credentials.email);

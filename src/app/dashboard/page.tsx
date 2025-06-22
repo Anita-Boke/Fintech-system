@@ -26,6 +26,15 @@ import {
   Transaction
 } from '@/lib/constants';
 
+// Helper function to get localStorage customers
+const getLocalStorageCustomers = (): Customer[] => {
+  if (typeof window !== 'undefined') {
+    const storedCustomers = localStorage.getItem('customers');
+    return storedCustomers ? JSON.parse(storedCustomers) : [];
+  }
+  return [];
+};
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -45,21 +54,25 @@ export default function DashboardPage() {
         
         if (!userId || !userEmail) return;
 
+        // Get localStorage customers
+        const localStorageCustomers = getLocalStorageCustomers();
+        const combinedDummyCustomers = [...dummyCustomers, ...localStorageCustomers];
+
         if (process.env.NODE_ENV === 'development') {
-          // Use dummy data in development
+          // Use combined data in development
           if (isAdmin) {
-            setCustomers(dummyCustomers);
+            setCustomers(combinedDummyCustomers);
             setAccounts(dummyAccounts);
             setTransactions(dummyTransactions);
           } else {
-            // Find customer by logged-in user's email
-            const customerData = dummyCustomers.find(c => c.email === userEmail);
+            // Find customer by logged-in user's email in combined data
+            const customerData = combinedDummyCustomers.find(c => c.email === userEmail);
             if (customerData) {
               setCustomers([customerData]);
               setAccounts(dummyAccounts.filter(acc => acc.customerId === customerData.id));
               setTransactions(dummyTransactions.filter(txn => txn.customerId === customerData.id));
             } else {
-              toast.error('No matching customer found in dummy data');
+              toast.error('No matching customer found');
             }
           }
           setIsLoading(false);
@@ -68,53 +81,51 @@ export default function DashboardPage() {
 
         try {
           if (isAdmin) {
-            // Admin sees all data
-            const [allCustomers, allAccounts, allTransactions] = await Promise.all([
+            // Admin sees all data from API combined with local data
+            const [apiCustomers, allAccounts, allTransactions] = await Promise.all([
               getCustomers(),
               getAllAccounts(),
               getAllTransactions()
             ]);
-            setCustomers(allCustomers || []);
+            setCustomers([...(apiCustomers || []), ...combinedDummyCustomers]);
             setAccounts(allAccounts || []);
             setTransactions(allTransactions || []);
           } else {
-            // Customer sees only their data
-            const [customerData, accountsData, transactionsData] = await Promise.all([
-              getCustomerByUserId(userId),
-              getAccountsByCustomer(userId),
-              getCustomerTransactions(userId)
-            ]);
+            // Customer sees their data from API first, falls back to local data
+            try {
+              const [customerData, accountsData, transactionsData] = await Promise.all([
+                getCustomerByUserId(userId),
+                getAccountsByCustomer(userId),
+                getCustomerTransactions(userId)
+              ]);
 
-            if (customerData) {
-              setCustomers([customerData]);
-              setAccounts(accountsData || []);
-              setTransactions(transactionsData || []);
-            } else {
-              toast.error('Customer profile not found');
+              if (customerData) {
+                setCustomers([customerData]);
+                setAccounts(accountsData || []);
+                setTransactions(transactionsData || []);
+              } else {
+                // Fallback to local data if API fails
+                const localCustomer = combinedDummyCustomers.find(c => c.email === userEmail);
+                if (localCustomer) {
+                  setCustomers([localCustomer]);
+                  setAccounts(dummyAccounts.filter(acc => acc.customerId === localCustomer.id));
+                  setTransactions(dummyTransactions.filter(txn => txn.customerId === localCustomer.id));
+                }
+              }
+            } catch (apiError) {
+              console.warn('API failed, using local data:', apiError);
+              const localCustomer = combinedDummyCustomers.find(c => c.email === userEmail);
+              if (localCustomer) {
+                setCustomers([localCustomer]);
+                setAccounts(dummyAccounts.filter(acc => acc.customerId === localCustomer.id));
+                setTransactions(dummyTransactions.filter(txn => txn.customerId === localCustomer.id));
+              }
             }
           }
-        } catch (apiError) {
-          console.warn('API failed, using dummy data:', apiError);
-          if (isAdmin) {
-            setCustomers(dummyCustomers);
-            setAccounts(dummyAccounts);
-            setTransactions(dummyTransactions);
-          } else {
-            // Fallback to finding customer by email in dummy data
-            const customerData = dummyCustomers.find(c => c.email === userEmail);
-            if (customerData) {
-              setCustomers([customerData]);
-              setAccounts(dummyAccounts.filter(acc => acc.customerId === customerData.id));
-              setTransactions(dummyTransactions.filter(txn => txn.customerId === customerData.id));
-              toast.error('Using dummy data as fallback');
-            } else {
-              toast.error('Failed to load your profile');
-            }
-          }
+        } catch (error) {
+          toast.error('Failed to load dashboard data');
+          console.error(error);
         }
-      } catch (error) {
-        toast.error('Failed to load dashboard data');
-        console.error(error);
       } finally {
         setIsLoading(false);
       }
@@ -125,6 +136,7 @@ export default function DashboardPage() {
     }
   }, [session, userId, isAdmin, userEmail]);
 
+  // Rest of your existing JSX remains exactly the same
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">

@@ -1,161 +1,224 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { getTransactions, approveTransaction, rejectTransaction } from '@/lib/services/transactionService';
-import { getAccounts } from '@/lib/services/accountService';
-import TransactionTable from './TransactionTable';
+import { useEffect, useState } from 'react';
+import { getAllTransactions, getCustomerTransactions } from '@/lib/services/transactionService';
 import { toast } from 'react-toastify';
+import { dummyTransactions, dummyCustomers, dummyAccounts, Transaction } from '@/lib/constants';
+import { useRouter } from 'next/navigation';
+import { FiPlus } from 'react-icons/fi';
 import Link from 'next/link';
-
-interface Account {
-  id: string;
-  accountNumber: string;
-  userId: string;
-}
-
-interface Transaction {
-  id: string;
-  accountId: string;
-  userId: string;
-  amount: number;
-  type: string;
-  status: string;
-  date:string;
-}
 
 interface EnhancedTransaction extends Transaction {
   accountNumber: string;
-  
+  customerName: string;
 }
 
-
-export default function TransactionList() {
+export default function TransactionsPage() {
   const { data: session } = useSession();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const isAdmin = session?.user?.role === 'admin';
-  const userId = session?.user?.id;
-
-  // Define getAccountNumber once
-  const getAccountNumber = (accountId: string): string => {
-    const account = accounts.find(a => a.id === accountId);
-    return account?.accountNumber ?? 'N/A';
-  };
-
-  // Compute enhancedTransactions AFTER accounts are loaded
-  const enhancedTransactions: EnhancedTransaction[] = transactions.map(t => ({
-    ...t,
-    accountNumber: getAccountNumber(t.accountId)
-  }));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const router = useRouter();
+  const [transactions, setTransactions] = useState<EnhancedTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadData = async () => {
+    if (!session?.user?.id) return;
+
+    const loadTransactions = async () => {
       try {
-        if (!userId) return;
-        
         setLoading(true);
-        const [loadedAccounts, loadedTransactions] = await Promise.all([
-          getAccounts() as unknown as Promise<Account[]>,
-          getTransactions() as unknown as Promise<Transaction[]>
-        ]);
         
-        setAccounts(loadedAccounts);
-        
-        const filteredTransactions = isAdmin 
-          ? loadedTransactions 
-          : loadedTransactions.filter(t => {
-              const userAccountId = session?.user?.accountId;
-              return t.userId === userId || (userAccountId && t.accountId === userAccountId);
-            });
-        
-        setTransactions(filteredTransactions);
+        const isAdmin = session.user.role === 'admin';
+
+        if (process.env.NODE_ENV === 'development') {
+          // Development with dummy data
+          let filteredTransactions = dummyTransactions;
+          
+          if (!isAdmin) {
+            // Find customer by email in dummy data
+            const customer = dummyCustomers.find(c => c.email === session.user?.email);
+            if (customer) {
+              // Find all accounts belonging to this customer
+              const customerAccountIds = dummyAccounts
+                .filter(acc => acc.customerId === customer.id)
+                .map(acc => acc.id);
+              
+              // Filter transactions for these accounts
+              filteredTransactions = dummyTransactions.filter(
+                t => customerAccountIds.includes(t.accountId) || 
+                     (t.toAccountId && customerAccountIds.includes(t.toAccountId))
+              );
+            }
+          }
+
+          // Enhance transactions with account numbers and customer names
+          const enhanced = filteredTransactions.map(t => {
+            const account = dummyAccounts.find(a => a.id === t.accountId);
+            const customer = dummyCustomers.find(c => c.id === t.customerId);
+            return {
+              ...t,
+              accountNumber: account?.accountNumber || 'N/A',
+              customerName: customer?.fullName || 'Unknown'
+            };
+          });
+
+          setTransactions(enhanced);
+          setLoading(false);
+          return;
+        }
+
+        // Production with API calls
+        let transactionsData: Transaction[];
+        if (isAdmin) {
+          transactionsData = await getAllTransactions();
+        } else {
+          transactionsData = await getCustomerTransactions(session.user.id);
+        }
+
+        // In a real app, you would enhance these with account numbers from your API
+        const enhanced = transactionsData.map(t => ({
+          ...t,
+          accountNumber: 'N/A', // Replace with actual account number from API
+          customerName: 'Unknown' // Replace with actual customer name from API
+        }));
+
+        setTransactions(enhanced);
       } catch (error) {
+        console.error('Error loading transactions:', error);
         toast.error('Failed to load transactions');
-        console.error(error);
+        // Fallback to dummy data in case of error
+        let filteredTransactions = dummyTransactions;
+        if (session.user.role !== 'admin') {
+          const customer = dummyCustomers.find(c => c.email === session.user?.email);
+          if (customer) {
+            const customerAccountIds = dummyAccounts
+              .filter(acc => acc.customerId === customer.id)
+              .map(acc => acc.id);
+            filteredTransactions = dummyTransactions.filter(
+              t => customerAccountIds.includes(t.accountId) || 
+                   (t.toAccountId && customerAccountIds.includes(t.toAccountId))
+            );
+          }
+        }
+        setTransactions(filteredTransactions.map(t => ({
+          ...t,
+          accountNumber: dummyAccounts.find(a => a.id === t.accountId)?.accountNumber || 'N/A',
+          customerName: dummyCustomers.find(c => c.id === t.customerId)?.fullName || 'Unknown'
+        })));
       } finally {
         setLoading(false);
       }
     };
-    
-    loadData();
-  }, [isAdmin, userId, session?.user?.accountId]);
 
-  const handleStatusChange = async (id: string, status: 'Approved' | 'Rejected') => {
-    try {
-      if (!session?.user) {
-        throw new Error('User not authenticated');
-      }
+    loadTransactions();
+  }, [session]);
 
-      setLoading(true);
-      
-      const user = {
-        id: session.user.id,
-        role: session.user.role
-      };
-
-      if (status === 'Approved') {
-        await approveTransaction(id, user);
-      } else {
-        await rejectTransaction(id, user);
-      }
-      
-      const updatedTransactions = await getTransactions() as Transaction[];
-      const filteredTransactions = isAdmin 
-        ? updatedTransactions 
-        : updatedTransactions.filter(t => {
-            const userAccountId = session.user?.accountId;
-            return t.userId === userId || (userAccountId && t.accountId === userAccountId);
-          });
-      
-      setTransactions(filteredTransactions);
-      toast.success(`Transaction ${status.toLowerCase()} successfully`);
-    } catch (error) {
-      toast.error(`Failed to ${status.toLowerCase()} transaction`);
-      console.error('Status change error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-black">Transactions</h2>
-        {isAdmin && (
+        <h1 className="text-2xl font-bold text-black">
+          {session?.user?.role === 'admin' ? 'All Transactions' : 'My Transactions'}
+        </h1>
+        {session?.user?.role === 'admin' && (
           <Link
             href="/dashboard/transactions/new"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
-            + New Transaction
+            <FiPlus /> New Transaction
           </Link>
         )}
       </div>
-  
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      ) : transactions.length === 0 ? (
+
+      {transactions.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <p className="text-gray-500 mb-4">No transactions found</p>
-          {isAdmin && (
-            <Link
-              href="/dashboard/transactions/new"
-              className="inline-block bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-            >
-              Create your first transaction
-            </Link>
-          )}
+          <p className="text-gray-500">No transactions found</p>
         </div>
       ) : (
-        <TransactionTable 
-          transactions={enhancedTransactions}
-          onStatusChange={isAdmin ? handleStatusChange : undefined}
-          isAdmin={isAdmin}
-        />
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {session?.user?.role === 'admin' && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Account
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Customer
+                    </th>
+                  </>
+                )}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Description
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {transactions.map((transaction) => (
+                <tr key={transaction.id}>
+                  {session?.user?.role === 'admin' && (
+                    <>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {transaction.accountNumber}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {transaction.customerName}
+                      </td>
+                    </>
+                  )}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(transaction.date).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {transaction.type}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {transaction.description || 'N/A'}
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                    transaction.type === 'Deposit' || transaction.type === 'Loan Payment' 
+                      ? 'text-green-600' 
+                      : 'text-red-600'
+                  }`}>
+                    {transaction.type === 'Deposit' || transaction.type === 'Loan Payment' ? '+' : '-'}
+                    ${transaction.amount.toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      transaction.status === 'Approved' 
+                        ? 'bg-green-100 text-green-800' 
+                        : transaction.status === 'Pending' 
+                          ? 'bg-yellow-100 text-yellow-800' 
+                          : 'bg-red-100 text-red-800'
+                    }`}>
+                      {transaction.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

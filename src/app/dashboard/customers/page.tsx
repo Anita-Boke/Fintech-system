@@ -1,98 +1,108 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { getUserById } from '@/lib/services/userService';
-import { getCustomerByUserId, getCustomers } from '@/lib/services/customerService';
+import { useSession } from 'next-auth/react';
+import { Customer, dummyCustomers } from '@/lib/constants';
+import { getCustomerById, getAllCustomers } from '@/lib/services/customerService';
 import { toast } from 'react-toastify';
-import { Customer } from '@/lib/constants';
 import { FiEdit, FiUser, FiPlus } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 
-// Dummy data imports
-import { dummyCustomers } from '@/lib/constants';
+// Helper function to manage localStorage customers
+const getLocalStorageCustomers = (): Customer[] => {
+  if (typeof window !== 'undefined') {
+    const storedCustomers = localStorage.getItem('customers');
+    return storedCustomers ? JSON.parse(storedCustomers) : [];
+  }
+  return [];
+};
 
-export default function CustomerDashboard() {
+const saveLocalStorageCustomers = (customers: Customer[]) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('customers', JSON.stringify(customers));
+  }
+};
+
+export default function CustomerPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  if (!session?.user?.id || !session.user.email) return;
+  useEffect(() => {
+    if (!session?.user?.id) return;
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      // Get user role
-      const user = await getUserById(session.user.id);
-      const isAdmin = user?.role === 'admin';
-      
-      if (process.env.NODE_ENV === 'development') {
-        // Use dummy data in development
-        if (isAdmin) {
-          setAllCustomers(dummyCustomers);
-           setCustomer(null);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get data from both sources
+        const localStorageCustomers = getLocalStorageCustomers();
+        const combinedDummyCustomers = [...dummyCustomers, ...localStorageCustomers];
+        
+        if (session.user.role === 'admin') {
+          // Admin sees all customers from both sources
+          setAllCustomers(combinedDummyCustomers);
+          setCustomer(null);
+          
+          // In production, still fetch from API but combine with all sources
+          if (process.env.NODE_ENV !== 'development') {
+            try {
+              const apiCustomers = await getAllCustomers();
+              setAllCustomers([...apiCustomers, ...combinedDummyCustomers]);
+            } catch (apiError) {
+              console.warn('API failed, using local data:', apiError);
+              setAllCustomers(combinedDummyCustomers);
+            }
+          }
         } else {
-          // Find the customer that matches the logged-in user's email
-          const matchedCustomer = dummyCustomers.find(c => c.email === session.user.email);
+          // Customer sees their data from any source
+          const matchedCustomer = combinedDummyCustomers.find(
+            c => c.email === session.user?.email
+          );
+          
           if (matchedCustomer) {
             setCustomer(matchedCustomer);
             setAllCustomers([]);
-          } else {
-            toast.error('No matching customer found in dummy data');
+          } else if (process.env.NODE_ENV !== 'development') {
+            // Fallback to API in production
+            try {
+              const apiCustomer = await getCustomerById(session.user.id);
+              if (apiCustomer) {
+                setCustomer(apiCustomer);
+                setAllCustomers([]);
+              }
+            } catch (apiError) {
+              console.warn('API failed to load customer:', apiError);
+            }
           }
         }
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        toast.error('Failed to load customer data');
+      } finally {
         setLoading(false);
-        return;
       }
+    };
 
-      if (isAdmin) {
-        try {
-          // Admin sees all customers
-          const customersData = await getCustomers();
-          setAllCustomers(customersData);
-          setCustomer(null);
-        } catch (apiError) {
-          console.error('API failed:', apiError);
-          setAllCustomers(dummyCustomers);
-          toast.error('Failed to load customer data');
-        }
-      } else {
-        // Customer sees only their data
-        try {
-          const customerData = await getCustomerByUserId(session.user.id);
-          if (!customerData) {
-            toast.error('Customer not found');
-            return;
-          }
-          setCustomer(customerData);
-           setAllCustomers([]);
-        } catch (apiError) {
-          console.error('API failed:', apiError);
-          // Try to find matching customer in dummy data by email as fallback
-          const matchedCustomer = dummyCustomers.find(c => c.email === session.user.email);
-          if (matchedCustomer) {
-            setCustomer(matchedCustomer);
-            toast.error('Using dummy data as fallback');
-          } else {
-            toast.error('Failed to load your profile');
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      toast.error('Failed to load data');
-    } finally {
-      setLoading(false);
+    loadData();
+  }, [session]);
+
+  // Function to add a new customer to localStorage and update state
+  const addCustomer = (newCustomer: Customer) => {
+    const existingCustomers = getLocalStorageCustomers();
+    const updatedCustomers = [...existingCustomers, newCustomer];
+    saveLocalStorageCustomers(updatedCustomers);
+    
+    if (session?.user?.role === 'admin') {
+      setAllCustomers(prev => [...prev, newCustomer]);
     }
+    
+    toast.success('Customer added successfully');
   };
 
-  loadData();
-}, [session]);
-
+  // Rest of your existing JSX remains exactly the same
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -101,23 +111,24 @@ useEffect(() => {
     );
   }
 
- if (session?.user?.role !== 'admin' && !customer) {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6 text-black">Customer Not Found</h1>
-      <p className='text-black'>No customer information available.</p>
-    </div>
-  );
-}
+  if (session?.user?.role !== 'admin' && !customer) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold mb-6 text-black">Customer Not Found</h1>
+        <p className="text-black">No customer information available.</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="p-6">
       {session?.user?.role === 'admin' ? (
         <>
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Customer Management</h1>
+            <h1 className="text-2xl font-bold text-black">Customer Management</h1>
             <button
-              onClick={() => router.push('/customers/new')}
+              onClick={() => router.push('/dashboard/customers/new')}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             >
               <FiPlus /> Add Customer
@@ -141,22 +152,22 @@ useEffect(() => {
                       </div>
                     )}
                     <div>
-                      <h3 className="font-bold text-lg">{customer.fullName}</h3>
+                      <h3 className="font-bold text-lg text-black">{customer.fullName}</h3>
                       <p className="text-sm text-gray-900">{customer.customerType}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                     <div>
                       <p className="text-gray-900">Email</p>
-                      <p className="truncate">{customer.email}</p>
+                      <p className="truncate text-black">{customer.email}</p>
                     </div>
                     <div>
                       <p className="text-gray-900">Phone</p>
-                      <p>{customer.phone}</p>
+                      <p className="text-black">{customer.phone}</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => router.push(`/customers/${customer.id}`)}
+                    onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
                     className="w-full flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 text-sm border-t pt-3"
                   >
                     <FiEdit /> View/Edit Profile
@@ -174,11 +185,11 @@ useEffect(() => {
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold text-black">Welcome, {customer.fullName}</h1>
               <button
-  onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
-  className="w-full flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 text-sm border-t pt-3"
->
-  <FiEdit /> View/Edit Profile
-</button>
+                onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
+              >
+                <FiEdit /> Edit Profile
+              </button>
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow">

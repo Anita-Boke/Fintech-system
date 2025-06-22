@@ -7,6 +7,15 @@ import { getCustomerById } from '@/lib/services/customerService';
 import { toast } from 'react-toastify';
 import CustomerForm from '@/components/customers/CustomerForm';
 
+// Helper functions for localStorage customers
+const getLocalStorageCustomers = (): Customer[] => {
+  if (typeof window !== 'undefined') {
+    const storedCustomers = localStorage.getItem('customers');
+    return storedCustomers ? JSON.parse(storedCustomers) : [];
+  }
+  return [];
+};
+
 interface CustomerDetailPageProps {
   params: {
     id: string;
@@ -25,10 +34,32 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       try {
         setLoading(true);
         
+        // Check localStorage first
+        const localStorageCustomers = getLocalStorageCustomers();
+        const localCustomer = localStorageCustomers.find(c => c.id === params.id);
+        
+        if (localCustomer) {
+          // Verify access permissions
+          const isAdmin = session.user.role === 'admin';
+          if (!isAdmin && localCustomer.email !== session.user.email) {
+            toast.error('You can only view your own profile');
+            return;
+          }
+          setCustomer(localCustomer);
+          setLoading(false);
+          return;
+        }
+
         // In development, use dummy data if available
         if (process.env.NODE_ENV === 'development') {
           const dummyCustomer = dummyCustomers.find(c => c.id === params.id);
           if (dummyCustomer) {
+            // Verify access permissions for dummy data
+            const isAdmin = session.user.role === 'admin';
+            if (!isAdmin && dummyCustomer.email !== session.user.email) {
+              toast.error('You can only view your own profile');
+              return;
+            }
             setCustomer(dummyCustomer);
             setLoading(false);
             return;
@@ -79,15 +110,21 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     );
   }
 
+  function handleSuccess(): void {
+    throw new Error('Function not implemented.');
+  }
+
   return (
-  <div className="p-6">
-    <h1 className="text-2xl font-bold mb-6">
-      {session?.user?.role === 'admin' ? 'Customer Details' : 'My Profile'}
-    </h1>
-    <CustomerForm 
-      customerId={customer.id} 
-      mode="view" 
-    />
-  </div>
-);
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">
+        {session?.user?.role === 'admin' ? 'Customer Details' : 'My Profile'}
+      </h1>
+      <CustomerForm 
+        customerId={customer.id} 
+        mode="view" 
+        onSuccess={handleSuccess}
+  session={session} 
+      />
+    </div>
+  );
 }

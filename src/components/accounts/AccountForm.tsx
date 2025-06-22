@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-// src/components/accounts/AccountForm.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,6 +7,21 @@ import { toast } from 'react-toastify';
 import { getAccount, updateAccount, getAccountById } from '@/lib/services/accountService';
 import { getCustomers } from '@/lib/services/customerService';
 import Link from 'next/link';
+
+// Add localStorage helper functions
+const getLocalStorageAccounts = (): any[] => {
+  if (typeof window !== 'undefined') {
+    const storedAccounts = localStorage.getItem('accounts');
+    return storedAccounts ? JSON.parse(storedAccounts) : [];
+  }
+  return [];
+};
+
+const saveLocalStorageAccounts = (accounts: any[]) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('accounts', JSON.stringify(accounts));
+  }
+};
 
 export default function AccountForm({ accountId }: { accountId?: string }) {
   const router = useRouter();
@@ -22,8 +36,15 @@ export default function AccountForm({ accountId }: { accountId?: string }) {
 
   useEffect(() => {
     if (accountId) {
-      const account = getAccountById(accountId);
-      if (account) setFormData(account);
+      // Check localStorage first, then fallback to API/dummy data
+      const localStorageAccounts = getLocalStorageAccounts();
+      const localAccount = localStorageAccounts.find((acc: any) => acc.id === accountId);
+      if (localAccount) {
+        setFormData(localAccount);
+      } else {
+        const account = getAccountById(accountId);
+        if (account) setFormData(account);
+      }
     }
     setCustomers(getCustomers());
   }, [accountId]);
@@ -33,13 +54,34 @@ export default function AccountForm({ accountId }: { accountId?: string }) {
     setIsLoading(true);
     
     try {
+      const localStorageAccounts = getLocalStorageAccounts();
+      
       if (accountId) {
+        // Update account in localStorage
+        const updatedAccounts = localStorageAccounts.map((acc: any) => 
+          acc.id === accountId ? { ...acc, ...formData } : acc
+        );
+        saveLocalStorageAccounts(updatedAccounts);
+        
+        // Still call the API service if needed
         updateAccount(accountId, formData);
         toast.success('Account updated successfully');
       } else {
+        // Create new account with generated ID
+        const newAccount = {
+          ...formData,
+          id: `acc-${Date.now()}`,
+          openingDate: new Date().toISOString()
+        };
+        
+        // Save to localStorage
+        saveLocalStorageAccounts([...localStorageAccounts, newAccount]);
+        
+        // Still call the API service if needed
         getAccount(formData);
         toast.success('Account created successfully');
       }
+      
       router.push('/dashboard/accounts');
     } catch (error) {
       toast.error('Error saving account');
@@ -48,6 +90,7 @@ export default function AccountForm({ accountId }: { accountId?: string }) {
     }
   };
 
+  // Rest of your existing JSX remains exactly the same
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6">
